@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id        String     @id @default(uuid())
+  name      String
+  email     String?    @unique
+  phone     String?    @unique
+  role      String     @default("user")
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  locations Location[]
+  trips     Trip[]
+}
+
+model Location {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  timestamp DateTime
+  metadata  Json?    @default("{}")
+  user      User     @relation(fields: [userId], references: [id])
+  @@index([userId, timestamp])
+}
+
+model Trip {
+  id            String   @id @default(uuid())
+  userId        String
+  startedAt     DateTime
+  endedAt       DateTime
+  startLat      Float
+  startLng      Float
+  endLat        Float
+  endLng        Float
+  distanceMeters Float
+  summary       Json?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+}

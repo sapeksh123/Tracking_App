@@ -22,6 +22,12 @@ flutter pub get
 flutter run
 ```
 
+If you run the app on a physical device, or your backend isn't on the host default 10.0.2.2, define the API base url with a dart define:
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://192.168.1.100:3000
+```
+
 ## Modifying Theme
 - Color palette and typography are defined in `lib/theme.dart` (AppColors and AppTheme).
 - Update colors in `AppColors` to tune the overall appearance.

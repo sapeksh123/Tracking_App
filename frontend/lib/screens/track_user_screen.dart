@@ -1,10 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../widgets/custom_button.dart';
+import '../services/api_service.dart';
+import '../widgets/toast.dart';
 
-class TrackUserScreen extends StatelessWidget {
+class TrackUserScreen extends StatefulWidget {
   const TrackUserScreen({super.key});
-  static const users = ["User A", "User B", "User C"]; // TODO: Fetch from API
+
+  @override
+  State<TrackUserScreen> createState() => _TrackUserScreenState();
+}
+
+class _TrackUserScreenState extends State<TrackUserScreen> {
+  final api = ApiService();
+  bool _loading = true;
+  List<dynamic> _users = [];
+  String? _selectedUserId;
+  Map<String, dynamic>? _routeData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    setState(() => _loading = true);
+    try {
+      final users = await api.listUsers();
+      setState(() => _users = users);
+    } catch (e) {
+      showToast('Failed loading users', error: true);
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadRouteForUser(String id) async {
+    try {
+      final route = await api.getRoute(id);
+      setState(() => _routeData = route);
+    } catch (e) {
+      showToast('Failed to load route', error: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,15 +53,22 @@ class TrackUserScreen extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(20),
-            child: DropdownButtonFormField(
+            child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : DropdownButtonFormField<String>(
               decoration: InputDecoration(labelText: "Select User"),
-              items: users.map((user) {
+                  initialValue: _selectedUserId,
+                  isExpanded: true,
+              items: _users.map<DropdownMenuItem<String>>((user) {
                 return DropdownMenuItem(
-                  value: user,
-                  child: Text(user),
+                  value: user['id'] as String,
+                  child: Text(user['name'] ?? user['id']),
                 );
               }).toList(),
-              onChanged: (value) {},
+                onChanged: (value) {
+                  setState(() => _selectedUserId = value);
+                  if (value != null) _loadRouteForUser(value);
+              },
             ),
           ),
 
@@ -50,7 +96,10 @@ class TrackUserScreen extends StatelessWidget {
                             color: Colors.black12,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Center(child: Text('Map will be shown here')),
+                          child: _routeData == null ? Center(child: Text('Map will be shown here')) : Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: SingleChildScrollView(child: Text('Route points: ${_routeData!['properties']?['count'] ?? 0}')),
+                          ),
                         ),
                       ),
                       SizedBox(height: 12),

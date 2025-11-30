@@ -10,7 +10,7 @@ import { requireAdmin } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.use(requireAdmin); // all routes protected
+router.use(requireAdmin); 
 
 router.post("/", createUser);
 router.get("/", listUsers);

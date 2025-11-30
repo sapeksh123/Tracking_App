@@ -12,9 +12,10 @@ import 'package:frontend/main.dart';
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipAuthInit: true));
+    await tester.pumpAndSettle();
 
-    // Verify that the Admin Login screen shows up by default.
+    // Verify that the Admin Login screen shows up by default after initialization.
     expect(find.text('Admin Login'), findsOneWidget);
   });
 }

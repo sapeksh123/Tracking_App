@@ -3,14 +3,14 @@ import '../theme.dart';
 
 class RoundedButton extends StatelessWidget {
 	final String label;
-	final VoidCallback onPressed;
+	final VoidCallback? onPressed;
 	final IconData? icon;
 	final bool fullWidth;
 
 	const RoundedButton({
 		super.key,
 		required this.label,
-		required this.onPressed,
+		this.onPressed,
 		this.icon,
 		this.fullWidth = true,
 	});

@@ -1,8 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../widgets/toast.dart';
+import 'package:provider/provider.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  bool _loading = true;
+  List<dynamic> _users = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUsers();
+  }
+
+  Future<void> _fetchUsers() async {
+    setState(() => _loading = true);
+    try {
+      final api = ApiService();
+      final users = await api.listUsers();
+      setState(() => _users = users);
+    } catch (e) {
+      showToast('Failed to load users', error: true);
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +72,13 @@ class AdminDashboardScreen extends StatelessWidget {
             ListTile(
               leading: Icon(Icons.logout),
               title: Text("Logout"),
-              onTap: () =>
-                  Navigator.pushReplacementNamed(context, "/admin-login"),
+              onTap: () async {
+                final auth = Provider.of<AuthService>(context, listen: false);
+                final navigator = Navigator.of(context);
+                await auth.logout();
+                if (!mounted) return;
+                navigator.pushReplacementNamed("/admin-login");
+              },
             ),
           ],
         ),
@@ -56,7 +92,12 @@ class AdminDashboardScreen extends StatelessWidget {
             Text('Overview', style: Theme.of(context).textTheme.titleLarge),
             SizedBox(height: 12),
             Expanded(
-              child: GridView.count(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Column(
+                children: [
+                  Expanded(
+                    child: GridView.count(
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
@@ -64,8 +105,40 @@ class AdminDashboardScreen extends StatelessWidget {
                 children: [
                   _buildCard(context, "Create User", FontAwesomeIcons.userPlus, () => Navigator.pushNamed(context, "/create-user")),
                   _buildCard(context, "Track User", FontAwesomeIcons.locationDot, () => Navigator.pushNamed(context, "/track-user")),
-                  _buildCard(context, "Users", FontAwesomeIcons.users, () {}),
+                  _buildCard(context, "Users (${_users.length})", FontAwesomeIcons.users, () {}),
                   _buildCard(context, "Settings", FontAwesomeIcons.gear, () {}),
+                ],
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text('Recent users', style: Theme.of(context).textTheme.titleMedium),
+                  SizedBox(height: 8),
+                  SizedBox(
+                    height: 120,
+                    child: _users.isEmpty
+                        ? Center(child: Text('No users yet'))
+                        : ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            itemBuilder: (c, i) => Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_users[i]['name'] ?? 'Unknown', style: Theme.of(context).textTheme.titleMedium),
+                                    SizedBox(height: 6),
+                                    Text(_users[i]['email'] ?? '', style: Theme.of(context).textTheme.bodySmall),
+                                    SizedBox(height: 4),
+                                    Text(_users[i]['phone'] ?? '', style: Theme.of(context).textTheme.bodySmall),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            separatorBuilder: (_, __) => SizedBox(width: 8),
+                            itemCount: _users.length,
+                          ),
+                  ),
                 ],
               ),
             ),

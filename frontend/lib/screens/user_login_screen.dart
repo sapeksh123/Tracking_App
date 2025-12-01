@@ -82,12 +82,25 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    FontAwesomeIcons.circleUser,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 48,
+                  // Logo
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/icon/logo.jpeg',
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Fallback to icon if logo not found
+                        return Icon(
+                          FontAwesomeIcons.circleUser,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 48,
+                        );
+                      },
+                    ),
                   ),
-                  SizedBox(height: 12),
+                  SizedBox(height: 16),
                   Text(
                     "User Login",
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(

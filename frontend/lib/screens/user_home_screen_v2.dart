@@ -29,8 +29,8 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
   bool _isInitializing = true;
   Map<String, dynamic>? _currentSession;
   String? _userId;
-  List<dynamic> _recentSessions = [];
   Timer? _refreshTimer;
+  List<dynamic> _recentSessions = [];
 
   @override
   void initState() {
@@ -354,11 +354,19 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
   }
 
   Future<void> _markVisit({String? address, String? notes}) async {
-    if (_userId == null) return;
+    if (_userId == null) {
+      showToast('User ID not found. Please login again.', error: true);
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
+      debugPrint('📍 Marking visit for user: $_userId');
+      debugPrint('📍 Session ID: ${_currentSession?['id']}');
+      debugPrint('📍 Address: $address');
+      debugPrint('📍 Notes: $notes');
+
       // Check if GPS is enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -366,27 +374,50 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
           'GPS is turned off. Please enable location services.',
           error: true,
         );
-        // Optionally open location settings
         await Geolocator.openLocationSettings();
         setState(() => _isLoading = false);
         return;
       }
 
-      await _visitService.markVisit(
+      // Check location permission
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        showToast('Location permission not granted', error: true);
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final result = await _visitService.markVisit(
         userId: _userId!,
         sessionId: _currentSession?['id'],
         address: address?.isNotEmpty == true ? address : null,
         notes: notes?.isNotEmpty == true ? notes : null,
       );
 
+      debugPrint('✓ Visit marked successfully: $result');
       showToast('✓ Visit marked successfully!');
+
+      // Refresh session to update visit count
+      await _refreshSession();
     } catch (e) {
+      debugPrint('✗ Failed to mark visit: $e');
+
       if (e.toString().contains('Location services are disabled')) {
         showToast(
           'GPS is turned off. Please enable location services.',
           error: true,
         );
         await Geolocator.openLocationSettings();
+      } else if (e.toString().contains('permission')) {
+        showToast('Location permission required', error: true);
+      } else if (e.toString().contains('401') ||
+          e.toString().contains('Unauthorized')) {
+        showToast('Session expired. Please login again.', error: true);
+      } else if (e.toString().contains('404')) {
+        showToast('Visit endpoint not found. Check backend.', error: true);
+      } else if (e.toString().contains('500')) {
+        showToast('Server error. Please try again later.', error: true);
       } else {
         showToast('Failed to mark visit: ${e.toString()}', error: true);
       }

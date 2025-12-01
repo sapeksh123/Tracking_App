@@ -97,10 +97,37 @@ class PunchInOutWidget extends StatelessWidget {
                   ),
                   _buildStatItem(
                     context,
+                    Icons.battery_charging_full,
+                    '${currentSession!['currentBattery'] ?? currentSession!['punchInBattery'] ?? 0}%',
+                    'Battery',
+                    Colors.green,
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem(
+                    context,
                     Icons.location_on,
                     '${currentSession!['trackingPoints'] ?? 0}',
                     'Points',
                     Colors.purple,
+                  ),
+                  _buildStatItem(
+                    context,
+                    Icons.place,
+                    '${currentSession!['visitCount'] ?? 0}',
+                    'Visits',
+                    Colors.teal,
+                  ),
+                  _buildStatItem(
+                    context,
+                    Icons.speed,
+                    _formatSpeed(currentSession!['avgSpeed']),
+                    'Avg Speed',
+                    Colors.indigo,
                   ),
                 ],
               ),
@@ -199,5 +226,10 @@ class PunchInOutWidget extends StatelessWidget {
     } catch (e) {
       return 'N/A';
     }
+  }
+
+  String _formatSpeed(double? speed) {
+    if (speed == null) return '0 km/h';
+    return '${speed.toStringAsFixed(1)} km/h';
   }
 }

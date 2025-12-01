@@ -11,6 +11,7 @@ class PermissionSetupDialog extends StatefulWidget {
 class _PermissionSetupDialogState extends State<PermissionSetupDialog> {
   final PermissionService _permissionService = PermissionService();
   bool _isLoading = false;
+  bool _isChecking = true;
   Map<String, bool> _permissionStatus = {};
 
   @override
@@ -20,20 +21,42 @@ class _PermissionSetupDialogState extends State<PermissionSetupDialog> {
   }
 
   Future<void> _checkPermissions() async {
-    final location = await _permissionService.hasLocationPermission();
-    final background = await _permissionService
-        .hasBackgroundLocationPermission();
-    final notification = await _permissionService.hasNotificationPermission();
-    final battery = await _permissionService.isIgnoringBatteryOptimizations();
+    if (mounted) {
+      setState(() => _isChecking = true);
+    }
 
-    setState(() {
-      _permissionStatus = {
-        'location': location,
-        'background': background,
-        'notification': notification,
-        'battery': battery,
-      };
-    });
+    try {
+      final location = await _permissionService.hasLocationPermission();
+      final background = await _permissionService
+          .hasBackgroundLocationPermission();
+      final notification = await _permissionService.hasNotificationPermission();
+      final battery = await _permissionService.isIgnoringBatteryOptimizations();
+
+      if (mounted) {
+        setState(() {
+          _permissionStatus = {
+            'location': location,
+            'background': background,
+            'notification': notification,
+            'battery': battery,
+          };
+          _isChecking = false;
+        });
+      }
+    } catch (e) {
+      // Handle error silently
+      if (mounted) {
+        setState(() {
+          _permissionStatus = {
+            'location': false,
+            'background': false,
+            'notification': false,
+            'battery': false,
+          };
+          _isChecking = false;
+        });
+      }
+    }
   }
 
   Future<void> _requestAllPermissions() async {
@@ -86,70 +109,118 @@ class _PermissionSetupDialogState extends State<PermissionSetupDialog> {
         _permissionStatus.values.every((v) => v);
 
     return AlertDialog(
-      title: const Text('Setup Tracking Permissions'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'For reliable location tracking, this app needs the following permissions:',
-              style: TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            _buildPermissionItem(
-              'Location',
-              'Required to track your location',
-              _permissionStatus['location'] ?? false,
-              Icons.location_on,
-            ),
-            _buildPermissionItem(
-              'Background Location',
-              'Track location even when app is closed',
-              _permissionStatus['background'] ?? false,
-              Icons.my_location,
-            ),
-            _buildPermissionItem(
-              'Notifications',
-              'Show tracking status in notification',
-              _permissionStatus['notification'] ?? false,
-              Icons.notifications,
-            ),
-            _buildPermissionItem(
-              'Battery Optimization',
-              'Prevent Android from stopping tracking',
-              _permissionStatus['battery'] ?? false,
-              Icons.battery_charging_full,
-            ),
-            if (!allGranted) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.orange.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Without these permissions, tracking may stop when the app is closed or device is idle.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange.shade900,
-                        ),
+      title: Row(
+        children: [
+          const Expanded(child: Text('Setup Tracking Permissions')),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _checkPermissions,
+            tooltip: 'Refresh permission status',
+          ),
+        ],
+      ),
+      content: _isChecking
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          : SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'For reliable location tracking, this app needs the following permissions:',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  if (allGranted)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '✓ All permissions granted! You\'re ready to track.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  _buildPermissionItem(
+                    'Location',
+                    'Required to track your location',
+                    _permissionStatus['location'] ?? false,
+                    Icons.location_on,
+                  ),
+                  _buildPermissionItem(
+                    'Background Location',
+                    'Track location even when app is closed',
+                    _permissionStatus['background'] ?? false,
+                    Icons.my_location,
+                  ),
+                  _buildPermissionItem(
+                    'Notifications',
+                    'Show tracking status in notification',
+                    _permissionStatus['notification'] ?? false,
+                    Icons.notifications,
+                  ),
+                  _buildPermissionItem(
+                    'Battery Optimization',
+                    'Prevent Android from stopping tracking',
+                    _permissionStatus['battery'] ?? false,
+                    Icons.battery_charging_full,
+                  ),
+                  if (!allGranted) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.orange.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Without these permissions, tracking may stop when the app is closed or device is idle.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-            ],
-          ],
-        ),
-      ),
+            ),
       actions: [
         if (!allGranted)
           TextButton(
@@ -189,33 +260,64 @@ class _PermissionSetupDialogState extends State<PermissionSetupDialog> {
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: granted ? Colors.green : Colors.grey),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: granted ? Colors.green.shade50 : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: granted ? Colors.green.shade200 : Colors.grey.shade300,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: granted ? Colors.green.shade700 : Colors.grey.shade600,
+              size: 28,
             ),
-          ),
-          Icon(
-            granted ? Icons.check_circle : Icons.cancel,
-            color: granted ? Colors.green : Colors.red,
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: granted ? Colors.green.shade900 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: granted
+                          ? Colors.green.shade700
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: granted ? Colors.green : Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                granted ? Icons.check : Icons.close,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

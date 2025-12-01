@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:async';
 import '../services/attendance_service.dart';
 import '../services/permission_service.dart';
+import '../services/visit_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/toast.dart';
 import '../widgets/tracking_consent_dialog.dart';
 import '../widgets/punch_in_out_widget.dart';
+import 'package:geolocator/geolocator.dart';
 
 class UserHomeScreenV2 extends StatefulWidget {
   const UserHomeScreenV2({super.key});
@@ -19,6 +21,7 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
     with WidgetsBindingObserver {
   final AttendanceService _attendanceService = AttendanceService();
   final PermissionService _permissionService = PermissionService();
+  final VisitService _visitService = VisitService();
 
   bool _isPunchedIn = false;
   bool _isLoading = false;
@@ -264,6 +267,114 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
     }
   }
 
+  void _showMarkVisitDialog() {
+    final addressController = TextEditingController();
+    final notesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.location_on, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Mark Visit'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: addressController,
+                decoration: InputDecoration(
+                  labelText: 'Location Name (Optional)',
+                  hintText: 'e.g., Client Office, Store #123',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.place),
+                ),
+                maxLength: 100,
+              ),
+              SizedBox(height: 16),
+              TextField(
+                controller: notesController,
+                decoration: InputDecoration(
+                  labelText: 'Notes (Optional)',
+                  hintText: 'Add any notes about this visit',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note),
+                ),
+                maxLines: 3,
+                maxLength: 500,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _markVisit(
+                address: addressController.text.trim(),
+                notes: notesController.text.trim(),
+              );
+            },
+            icon: Icon(Icons.check),
+            label: Text('Mark Visit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _markVisit({String? address, String? notes}) async {
+    if (_userId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Check if GPS is enabled
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        showToast(
+          'GPS is turned off. Please enable location services.',
+          error: true,
+        );
+        // Optionally open location settings
+        await Geolocator.openLocationSettings();
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      await _visitService.markVisit(
+        userId: _userId!,
+        sessionId: _currentSession?['id'],
+        address: address?.isNotEmpty == true ? address : null,
+        notes: notes?.isNotEmpty == true ? notes : null,
+      );
+
+      showToast('✓ Visit marked successfully!');
+    } catch (e) {
+      if (e.toString().contains('Location services are disabled')) {
+        showToast(
+          'GPS is turned off. Please enable location services.',
+          error: true,
+        );
+        await Geolocator.openLocationSettings();
+      } else {
+        showToast('Failed to mark visit: ${e.toString()}', error: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
@@ -332,6 +443,69 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
               ),
 
               SizedBox(height: 16),
+
+              // Mark Visit Button (only show when punched in)
+              if (_isPunchedIn) ...[
+                Card(
+                  color: Colors.blue.shade50,
+                  child: InkWell(
+                    onTap: _isLoading ? null : _showMarkVisitDialog,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            color: Colors.blue.shade700,
+                            size: 32,
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mark Visit',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade900,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Save your current location as a visit',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.blue.shade700,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/visits',
+                      arguments: {'userId': _userId},
+                    );
+                  },
+                  icon: Icon(Icons.list),
+                  label: Text('View All Visits'),
+                ),
+                SizedBox(height: 16),
+              ],
 
               // Info Card
               Card(

@@ -35,6 +35,7 @@ model User {
   trips           Trip[]
   trackingData    TrackingData[]
   attendanceSessions AttendanceSession[]
+  visits          Visit[]
 }
 
 model Location {
@@ -102,4 +103,21 @@ model Trip {
   summary       Json?
   createdAt     DateTime @default(now())
   user          User     @relation(fields: [userId], references: [id])
+}
+
+model Visit {
+  id          String   @id @default(uuid())
+  userId      String
+  sessionId   String?  // Link to attendance session
+  latitude    Float
+  longitude   Float
+  address     String?  // Location name/address
+  notes       String?  // User notes about the visit
+  visitTime   DateTime @default(now())
+  battery     Int?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId, visitTime])
+  @@index([sessionId])
 }

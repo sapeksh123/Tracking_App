@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'device_info_service.dart';
 import 'battery_service.dart';
+import 'background_location_service.dart';
 
 class TrackingService {
   final ApiService _api = ApiService();
@@ -34,12 +35,13 @@ class TrackingService {
       _androidId = await _deviceInfo.getAndroidId();
       final deviceModel = await _deviceInfo.getDeviceModel();
 
-      await _api.registerDevice(userId, _androidId!, deviceModel);
+      if (_androidId != null) {
+        await _api.registerDevice(userId, _androidId!, deviceModel);
+      }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('android_id', _androidId!);
     } catch (e) {
-      print('Error registering device: $e');
       rethrow;
     }
   }
@@ -67,17 +69,17 @@ class TrackingService {
 
       _isTracking = true;
 
-      // Start periodic tracking (every 60 seconds)
+      // Start background service for persistent tracking
+      await BackgroundLocationService.startService();
+
+      // Start periodic tracking (every 60 seconds) as fallback
       _trackingTimer = Timer.periodic(Duration(seconds: 60), (timer) {
         _sendLocationUpdate();
       });
 
       // Send initial location
       await _sendLocationUpdate();
-
-      print('Tracking started for user: $userId');
     } catch (e) {
-      print('Error starting tracking: $e');
       _isTracking = false;
       rethrow;
     }
@@ -87,9 +89,19 @@ class TrackingService {
     if (!_isTracking || _userId == null) return;
 
     try {
+      // Check if location service is enabled
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        // Location services are disabled, skip this update
+        return;
+      }
+
       // Get current position
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
       );
 
       // Get battery level
@@ -106,21 +118,19 @@ class TrackingService {
         speed: position.speed,
         timestamp: DateTime.now().toUtc().toIso8601String(),
       );
-
-      print(
-        'Location update sent: ${position.latitude}, ${position.longitude}, Battery: $batteryLevel%',
-      );
     } catch (e) {
-      print('Error sending location update: $e');
+      // Silently handle errors
     }
   }
 
   Future<void> stopTracking() async {
+    // Stop background service
+    await BackgroundLocationService.stopService();
+
     _trackingTimer?.cancel();
     _positionSubscription?.cancel();
     _isTracking = false;
     _userId = null;
-    print('Tracking stopped');
   }
 
   void dispose() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:async';
 import '../services/api_service.dart';
 import '../widgets/toast.dart';
 
@@ -24,6 +25,9 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
   GoogleMapController? _mapController;
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
+  Timer? _refreshTimer;
+  List<dynamic> _visits = [];
+  Map<String, dynamic>? _liveTracking;
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(20.5937, 78.9629),
@@ -38,6 +42,7 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -120,13 +125,32 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
     });
 
     try {
+      // Load session route
       final route = await api.getSessionRoute(_selectedUserId!, sessionId);
+
+      // Load visits for this session
+      final visitsResponse = await api.getSessionVisits(sessionId);
+      final visits = visitsResponse['visits'] ?? [];
+
+      // Load live tracking data
+      final liveData = await api.getLiveTracking(_selectedUserId!);
+
       if (mounted) {
         setState(() {
           _routeData = route;
+          _visits = visits;
+          _liveTracking = liveData;
         });
         _updateMapWithRoute(route);
         showToast('✓ $label loaded');
+
+        // Start auto-refresh if session is active
+        final session = route['session'];
+        if (session != null && session['isActive'] == true) {
+          _startAutoRefresh();
+        } else {
+          _stopAutoRefresh();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -139,6 +163,45 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
       if (mounted) {
         setState(() => _loadingRoute = false);
       }
+    }
+  }
+
+  void _startAutoRefresh() {
+    _stopAutoRefresh();
+    _refreshTimer = Timer.periodic(Duration(seconds: 10), (timer) {
+      if (_selectedSessionId != null) {
+        _refreshLiveData();
+      }
+    });
+  }
+
+  void _stopAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  Future<void> _refreshLiveData() async {
+    if (_selectedUserId == null || _selectedSessionId == null) return;
+
+    try {
+      // Silently refresh live tracking data
+      final liveData = await api.getLiveTracking(_selectedUserId!);
+      final route = await api.getSessionRoute(
+        _selectedUserId!,
+        _selectedSessionId!,
+      );
+      final visitsResponse = await api.getSessionVisits(_selectedSessionId!);
+
+      if (mounted) {
+        setState(() {
+          _liveTracking = liveData;
+          _routeData = route;
+          _visits = visitsResponse['visits'] ?? [];
+        });
+        _updateMapWithRoute(route);
+      }
+    } catch (e) {
+      // Silently fail for auto-refresh
     }
   }
 
@@ -169,40 +232,82 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
 
     // Create markers
     final markers = <Marker>{};
+
+    // Start marker (Punch In) - Green
     markers.add(
       Marker(
         markerId: MarkerId('start'),
         position: points.first,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         infoWindow: InfoWindow(
-          title: 'Punch In',
+          title: '🟢 Punch In',
           snippet: _formatTime(session['punchInTime']),
         ),
       ),
     );
 
-    if (points.length > 1 && session['punchOutTime'] != null) {
+    // Current location marker (if session is active)
+    if (session['isActive'] == true && _liveTracking != null) {
+      final currentLoc = _liveTracking!['currentLocation'];
+      if (currentLoc != null) {
+        markers.add(
+          Marker(
+            markerId: MarkerId('current'),
+            position: LatLng(currentLoc['latitude'], currentLoc['longitude']),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueAzure,
+            ),
+            infoWindow: InfoWindow(
+              title: '👤 Current Location',
+              snippet:
+                  'Battery: ${currentLoc['battery'] ?? 'N/A'}% • ${_formatTime(currentLoc['timestamp'])}',
+            ),
+          ),
+        );
+      }
+    }
+
+    // End marker (Punch Out) - Red (only if punched out)
+    if (session['punchOutTime'] != null) {
       markers.add(
         Marker(
           markerId: MarkerId('end'),
           position: points.last,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: InfoWindow(
-            title: 'Punch Out',
+            title: '🔴 Punch Out',
             snippet: _formatTime(session['punchOutTime']),
           ),
         ),
       );
     }
 
-    // Create polyline
+    // Visit markers - Orange
+    for (var i = 0; i < _visits.length; i++) {
+      final visit = _visits[i];
+      markers.add(
+        Marker(
+          markerId: MarkerId('visit_${visit['id']}'),
+          position: LatLng(visit['latitude'], visit['longitude']),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+          infoWindow: InfoWindow(
+            title: '📍 ${visit['address'] ?? 'Visit ${i + 1}'}',
+            snippet: visit['notes'] ?? _formatTime(visit['visitTime']),
+          ),
+        ),
+      );
+    }
+
+    // Create polyline (route path)
     final polylines = <Polyline>{
       Polyline(
         polylineId: PolylineId('route'),
         points: points,
         color: Colors.blue,
-        width: 4,
-        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+        width: 5,
+        geodesic: true,
       ),
     };
 
@@ -211,11 +316,51 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
       _polylines = polylines;
     });
 
-    // Animate camera
-    if (_mapController != null && points.isNotEmpty) {
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngBounds(_boundsFromLatLngList(points), 50),
-      );
+    // Animate camera - Focus on user's current location or punch-in location
+    if (_mapController != null) {
+      LatLng? focusLocation;
+      double zoomLevel = 15.0;
+
+      // Priority 1: Current location (if session is active)
+      if (session['isActive'] == true && _liveTracking != null) {
+        final currentLoc = _liveTracking!['currentLocation'];
+        if (currentLoc != null &&
+            currentLoc['latitude'] != null &&
+            currentLoc['longitude'] != null) {
+          focusLocation = LatLng(
+            currentLoc['latitude'].toDouble(),
+            currentLoc['longitude'].toDouble(),
+          );
+        }
+      }
+
+      // Priority 2: Punch-in location (if no current location)
+      if (focusLocation == null && points.isNotEmpty) {
+        focusLocation = points.first;
+      }
+
+      // Animate to focus location
+      if (focusLocation != null) {
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(focusLocation, zoomLevel),
+        );
+      } else {
+        // Fallback: Fit all points
+        List<LatLng> allPoints = List.from(points);
+        for (var visit in _visits) {
+          allPoints.add(LatLng(visit['latitude'], visit['longitude']));
+        }
+
+        if (allPoints.length == 1) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLngZoom(allPoints.first, zoomLevel),
+          );
+        } else if (allPoints.length > 1) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLngBounds(_boundsFromLatLngList(allPoints), 80),
+          );
+        }
+      }
     }
   }
 
@@ -419,8 +564,8 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
                       onMapCreated: (controller) {
                         _mapController = controller;
                       },
-                      myLocationButtonEnabled: true,
-                      myLocationEnabled: true,
+                      myLocationButtonEnabled: false,
+                      myLocationEnabled: false,
                       zoomControlsEnabled: true,
                       mapToolbarEnabled: true,
                     ),
@@ -474,13 +619,88 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
                                       'Points',
                                       '$pointCount',
                                     ),
+                                    _buildStatItem(
+                                      Icons.place,
+                                      'Visits',
+                                      '${_visits.length}',
+                                    ),
                                   ],
                                 ),
+                                if (session['isActive'] == true &&
+                                    _liveTracking != null) ...[
+                                  SizedBox(height: 8),
+                                  Divider(),
+                                  SizedBox(height: 4),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Colors.green,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Live Tracking Active',
+                                        style: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        '• Auto-refresh every 10s',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
                         ),
                       ),
+                    // Legend
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: Card(
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Legend',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              _buildLegendItem(Colors.green, 'Punch In'),
+                              _buildLegendItem(Colors.red, 'Punch Out'),
+                              _buildLegendItem(Colors.blue, 'Current'),
+                              _buildLegendItem(Colors.orange, 'Visit'),
+                              _buildLegendItem(
+                                Colors.blue,
+                                'Route',
+                                isLine: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -503,6 +723,27 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label, {bool isLine = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isLine)
+            Container(width: 20, height: 3, color: color)
+          else
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+          SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 11)),
+        ],
+      ),
     );
   }
 

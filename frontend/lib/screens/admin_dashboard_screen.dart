@@ -4,7 +4,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/toast.dart';
 import 'package:provider/provider.dart';
-import 'user_detail_screen.dart';
+import 'user_detail_screen_v2.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -94,7 +94,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => UserDetailScreen(
+                                  builder: (context) => UserDetailScreenV2(
                                     userId: user['id'],
                                     userName: user['name'] ?? 'Unknown',
                                   ),
@@ -258,7 +258,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                           context,
                                           MaterialPageRoute(
                                             builder: (context) =>
-                                                UserDetailScreen(
+                                                UserDetailScreenV2(
                                                   userId: _users[i]['id'],
                                                   userName:
                                                       _users[i]['name'] ??

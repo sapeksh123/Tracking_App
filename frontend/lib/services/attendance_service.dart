@@ -34,7 +34,7 @@ class AttendanceService {
         await _tracking.startTracking(_userId!);
       }
     } catch (e) {
-      print('Error loading current session: $e');
+      // Silently handle errors
     }
   }
 
@@ -50,7 +50,10 @@ class AttendanceService {
     try {
       // Get current location
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
       );
 
       // Get battery level
@@ -73,7 +76,6 @@ class AttendanceService {
 
       return response;
     } catch (e) {
-      print('Error punching in: $e');
       rethrow;
     }
   }
@@ -88,16 +90,19 @@ class AttendanceService {
     }
 
     try {
+      // Stop tracking first
+      await _tracking.stopTracking();
+
       // Get current location
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
       );
 
       // Get battery level
       final batteryLevel = await _battery.getBatteryLevel();
-
-      // Stop tracking first
-      await _tracking.stopTracking();
 
       // Call punch out API
       final response = await _api.punchOut(
@@ -113,7 +118,6 @@ class AttendanceService {
 
       return response;
     } catch (e) {
-      print('Error punching out: $e');
       rethrow;
     }
   }
@@ -127,7 +131,6 @@ class AttendanceService {
       final response = await _api.getAttendanceHistory(_userId!);
       return response['sessions'] ?? [];
     } catch (e) {
-      print('Error getting attendance history: $e');
       rethrow;
     }
   }
@@ -141,7 +144,6 @@ class AttendanceService {
       final response = await _api.getSessionRoute(_userId!, sessionId);
       return response;
     } catch (e) {
-      print('Error getting session route: $e');
       rethrow;
     }
   }

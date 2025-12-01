@@ -10,6 +10,36 @@ export async function registerDevice(req, res) {
       return res.status(400).json({ error: "userId and androidId required" });
     }
 
+    // Check if this user already has this androidId
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { androidId: true },
+    });
+
+    // If user already has this androidId, no need to update
+    if (currentUser && currentUser.androidId === androidId) {
+      return res.json({
+        success: true,
+        message: "Device already registered",
+        user: { id: userId, androidId },
+      });
+    }
+
+    // Check if another user has this androidId
+    const existingUser = await prisma.user.findUnique({
+      where: { androidId },
+      select: { id: true },
+    });
+
+    // If another user has this androidId, clear it first
+    if (existingUser && existingUser.id !== userId) {
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { androidId: null },
+      });
+    }
+
+    // Now update the current user
     const user = await prisma.user.update({
       where: { id: userId },
       data: {

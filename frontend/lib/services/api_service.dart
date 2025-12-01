@@ -540,6 +540,122 @@ class ApiService {
     final body = jsonDecode(res.body);
     throw ApiException(res.statusCode, body['error'] ?? 'Unknown error');
   }
+
+  // Visit APIs
+  Future<Map<String, dynamic>> markVisit({
+    required String userId,
+    String? sessionId,
+    required double latitude,
+    required double longitude,
+    String? address,
+    String? notes,
+    int? battery,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final res = await http.post(
+      Uri.parse(ApiConfig.api('/visits/mark')),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token != null ? 'Bearer $token' : '',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'sessionId': sessionId,
+        'latitude': latitude,
+        'longitude': longitude,
+        'address': address,
+        'notes': notes,
+        'battery': battery,
+      }),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    final body = jsonDecode(res.body);
+    throw ApiException(res.statusCode, body['error'] ?? 'Unknown error');
+  }
+
+  Future<Map<String, dynamic>> getUserVisits(
+    String userId, {
+    String? sessionId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final params = <String>[];
+    if (sessionId != null) params.add('sessionId=$sessionId');
+    if (from != null) {
+      params.add('from=${Uri.encodeComponent(from.toIso8601String())}');
+    }
+    if (to != null) {
+      params.add('to=${Uri.encodeComponent(to.toIso8601String())}');
+    }
+    final q = params.isNotEmpty ? '?${params.join('&')}' : '';
+    final res = await http.get(
+      Uri.parse(ApiConfig.api('/visits/user/$userId$q')),
+      headers: {'Authorization': token != null ? 'Bearer $token' : ''},
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    final body = jsonDecode(res.body);
+    throw ApiException(res.statusCode, body['error'] ?? 'Unknown error');
+  }
+
+  Future<Map<String, dynamic>> getSessionVisits(String sessionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final res = await http.get(
+      Uri.parse(ApiConfig.api('/visits/session/$sessionId')),
+      headers: {'Authorization': token != null ? 'Bearer $token' : ''},
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    final body = jsonDecode(res.body);
+    throw ApiException(res.statusCode, body['error'] ?? 'Unknown error');
+  }
+
+  Future<Map<String, dynamic>> updateVisit(
+    String visitId, {
+    String? address,
+    String? notes,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final res = await http.put(
+      Uri.parse(ApiConfig.api('/visits/$visitId')),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token != null ? 'Bearer $token' : '',
+      },
+      body: jsonEncode({
+        if (address != null) 'address': address,
+        if (notes != null) 'notes': notes,
+      }),
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    final body = jsonDecode(res.body);
+    throw ApiException(res.statusCode, body['error'] ?? 'Unknown error');
+  }
+
+  Future<Map<String, dynamic>> deleteVisit(String visitId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final res = await http.delete(
+      Uri.parse(ApiConfig.api('/visits/$visitId')),
+      headers: {'Authorization': token != null ? 'Bearer $token' : ''},
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    final body = jsonDecode(res.body);
+    throw ApiException(res.statusCode, body['error'] ?? 'Unknown error');
+  }
 }
 
 class ApiException implements Exception {

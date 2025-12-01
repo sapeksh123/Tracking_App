@@ -90,7 +90,9 @@ export async function saveConsent(req, res) {
 // POST /realtime/track
 export async function trackLocation(req, res) {
   try {
-    const { userId, androidId, latitude, longitude, battery, accuracy, speed, timestamp } = req.body;
+    const { userId, androidId, sessionId, latitude, longitude, battery, accuracy, speed, timestamp } = req.body;
+    
+    console.log("📍 Track location request:", { userId, sessionId, latitude, longitude, battery });
     
     if (!userId || latitude == null || longitude == null) {
       return res.status(400).json({ error: "userId, latitude, and longitude required" });
@@ -108,11 +110,12 @@ export async function trackLocation(req, res) {
       return res.status(400).json({ error: "Invalid longitude" });
     }
 
-    // Save tracking data
+    // Save tracking data with sessionId
     const trackingData = await prisma.trackingData.create({
       data: {
         userId,
         androidId: androidId || null,
+        sessionId: sessionId || null,  // ← CRITICAL: Store sessionId!
         latitude: lat,
         longitude: lng,
         battery: battery ? parseInt(battery) : null,
@@ -128,13 +131,15 @@ export async function trackLocation(req, res) {
       data: { lastSeen: new Date() },
     });
 
+    console.log("✓ Location tracked successfully with sessionId:", sessionId);
+
     res.json({
       success: true,
       message: "Location tracked successfully",
       id: trackingData.id,
     });
   } catch (e) {
-    console.error("Track location error:", e);
+    console.error("❌ Track location error:", e);
     res.status(500).json({ error: "Failed to track location", details: e.message });
   }
 }

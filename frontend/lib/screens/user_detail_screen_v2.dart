@@ -447,7 +447,7 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
   String _formatDate(String? dateStr) {
     if (dateStr == null) return 'N/A';
     try {
-      final date = DateTime.parse(dateStr);
+      final date = DateTime.parse(dateStr).toLocal(); // Convert to local time
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final sessionDate = DateTime(date.year, date.month, date.day);
@@ -467,7 +467,7 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
   String _formatDateTime(String? dateStr) {
     if (dateStr == null) return 'N/A';
     try {
-      final date = DateTime.parse(dateStr);
+      final date = DateTime.parse(dateStr).toLocal(); // Convert to local time
       return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
     } catch (e) {
       return 'N/A';

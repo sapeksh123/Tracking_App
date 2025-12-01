@@ -878,7 +878,7 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
   String _formatTime(String? timeStr) {
     if (timeStr == null) return 'N/A';
     try {
-      final time = DateTime.parse(timeStr);
+      final time = DateTime.parse(timeStr).toLocal(); // Convert to local time
       return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
     } catch (e) {
       return 'N/A';

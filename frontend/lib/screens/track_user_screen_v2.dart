@@ -262,20 +262,33 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
     if (session['isActive'] == true && _liveTracking != null) {
       final currentLoc = _liveTracking!['currentLocation'];
       if (currentLoc != null) {
-        markers.add(
-          Marker(
-            markerId: MarkerId('current'),
-            position: LatLng(currentLoc['latitude'], currentLoc['longitude']),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueAzure,
+        final lat = currentLoc['latitude'] ?? currentLoc['lat'];
+        final lng = currentLoc['longitude'] ?? currentLoc['lng'];
+
+        if (lat != null && lng != null) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('current'),
+              position: LatLng(lat.toDouble(), lng.toDouble()),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueAzure,
+              ),
+              infoWindow: InfoWindow(
+                title: '👤 Live Location',
+                snippet:
+                    'Battery: ${currentLoc['battery'] ?? 'N/A'}% • ${_formatTime(currentLoc['timestamp'])}',
+              ),
             ),
-            infoWindow: InfoWindow(
-              title: '👤 Current Location',
-              snippet:
-                  'Battery: ${currentLoc['battery'] ?? 'N/A'}% • ${_formatTime(currentLoc['timestamp'])}',
+          );
+
+          // Move camera to current location
+          _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              LatLng(lat.toDouble(), lng.toDouble()),
+              15,
             ),
-          ),
-        );
+          );
+        }
       }
     }
 
@@ -539,12 +552,105 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
                               color: Colors.green.shade700,
                             ),
                             SizedBox(width: 4),
-                            Text(
-                              'User is currently punched in',
-                              style: TextStyle(
-                                color: Colors.green.shade700,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: Text(
+                                'User is currently punched in',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            if (_liveTracking != null &&
+                                _liveTracking!['currentLocation'] != null)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.location_on,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      'LIVE',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // Live tracking status
+                    if (session != null &&
+                        session['isActive'] == true &&
+                        _liveTracking != null) ...[
+                      SizedBox(height: 8),
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.my_location,
+                              size: 16,
+                              color: Colors.blue.shade700,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Live Tracking Active',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade900,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (_liveTracking!['currentLocation'] != null)
+                                    Text(
+                                      'Last update: ${_formatTime(_liveTracking!['currentLocation']['timestamp'])}',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade700,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.circle,
+                                size: 8,
+                                color: Colors.white,
                               ),
                             ),
                           ],

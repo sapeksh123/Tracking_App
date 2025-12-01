@@ -259,46 +259,52 @@ export async function getAttendanceHistory(req, res) {
           return session;
         }
 
-        // Get tracking data for active session
-        const trackingData = await prisma.trackingData.findMany({
-          where: { sessionId: session.id },
-          orderBy: { timestamp: "asc" },
-        });
+        try {
+          // Get tracking data for active session
+          const trackingData = await prisma.trackingData.findMany({
+            where: { sessionId: session.id },
+            orderBy: { timestamp: "asc" },
+          });
 
-        // Calculate current distance
-        let totalDistance = 0;
-        for (let i = 1; i < trackingData.length; i++) {
-          const prev = trackingData[i - 1];
-          const curr = trackingData[i];
-          totalDistance += haversine(
-            prev.latitude,
-            prev.longitude,
-            curr.latitude,
-            curr.longitude
+          // Calculate current distance
+          let totalDistance = 0;
+          for (let i = 1; i < trackingData.length; i++) {
+            const prev = trackingData[i - 1];
+            const curr = trackingData[i];
+            totalDistance += haversine(
+              prev.latitude,
+              prev.longitude,
+              curr.latitude,
+              curr.longitude
+            );
+          }
+
+          // Calculate current duration
+          const duration = Math.floor(
+            (new Date().getTime() - session.punchInTime.getTime()) / (1000 * 60)
           );
+
+          // Get latest tracking point for current battery (last in asc order)
+          const latestTracking = trackingData[trackingData.length - 1];
+          
+          // Get visit count
+          const visitCount = await prisma.visit.count({
+            where: { sessionId: session.id },
+          });
+
+          return {
+            ...session,
+            currentDistance: Math.round(totalDistance),
+            currentDuration: duration,
+            trackingPoints: trackingData.length,
+            currentBattery: latestTracking?.battery || session.punchInBattery,
+            visitCount,
+          };
+        } catch (error) {
+          // If error calculating active session data, return session as-is
+          console.error(`Error enhancing session ${session.id}:`, error);
+          return session;
         }
-
-        // Calculate current duration
-        const duration = Math.floor(
-          (new Date().getTime() - session.punchInTime.getTime()) / (1000 * 60)
-        );
-
-        // Get latest tracking point for current battery
-        const latestTracking = trackingData[0]; // Already ordered desc in query above
-        
-        // Get visit count
-        const visitCount = await prisma.visit.count({
-          where: { sessionId: session.id },
-        });
-
-        return {
-          ...session,
-          currentDistance: Math.round(totalDistance),
-          currentDuration: duration,
-          trackingPoints: trackingData.length,
-          currentBattery: latestTracking?.battery || session.punchInBattery,
-          visitCount,
-        };
       })
     );
 

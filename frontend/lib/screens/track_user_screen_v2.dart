@@ -129,8 +129,14 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
       final route = await api.getSessionRoute(_selectedUserId!, sessionId);
 
       // Load visits for this session
-      final visitsResponse = await api.getSessionVisits(sessionId);
-      final visits = visitsResponse['visits'] ?? [];
+      List<dynamic> visits = [];
+      try {
+        final visitsResponse = await api.getSessionVisits(sessionId);
+        visits = visitsResponse['visits'] ?? [];
+      } catch (e) {
+        debugPrint('⚠ Failed to load visits: $e');
+        // Continue without visits
+      }
 
       // Load live tracking data
       final liveData = await api.getLiveTracking(_selectedUserId!);
@@ -190,13 +196,19 @@ class _TrackUserScreenV2State extends State<TrackUserScreenV2> {
         _selectedUserId!,
         _selectedSessionId!,
       );
-      final visitsResponse = await api.getSessionVisits(_selectedSessionId!);
+      List<dynamic> visits = [];
+      try {
+        final visitsResponse = await api.getSessionVisits(_selectedSessionId!);
+        visits = visitsResponse['visits'] ?? [];
+      } catch (e) {
+        debugPrint('⚠ Failed to refresh visits: $e');
+      }
 
       if (mounted) {
         setState(() {
           _liveTracking = liveData;
           _routeData = route;
-          _visits = visitsResponse['visits'] ?? [];
+          _visits = visits;
         });
         _updateMapWithRoute(route);
       }

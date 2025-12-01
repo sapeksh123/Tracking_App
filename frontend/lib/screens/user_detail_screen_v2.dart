@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/api_service.dart';
@@ -22,11 +23,28 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
   bool _loading = true;
   Map<String, dynamic>? _user;
   List<dynamic> _sessions = [];
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadUserDetails();
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(Duration(seconds: 10), (timer) {
+      if (mounted) {
+        _loadUserDetails();
+      }
+    });
   }
 
   Future<void> _loadUserDetails() async {
@@ -40,7 +58,7 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
 
       if (mounted) {
         setState(() {
-          _user = userResponse is Map && userResponse.containsKey('user')
+          _user = userResponse.containsKey('user')
               ? userResponse['user']
               : userResponse;
           _sessions = sessionsResponse['sessions'] ?? [];
@@ -320,11 +338,27 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  subtitle: Text(
-                                    isActive
-                                        ? 'Active session'
-                                        : 'Duration: ${_formatDuration(session['totalDuration'])} • '
-                                              'Distance: ${_formatDistance(session['totalDistance'])}',
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isActive
+                                            ? 'Duration: ${_formatDuration(session['currentDuration'] ?? 0)} • '
+                                                  'Distance: ${_formatDistance(session['currentDistance'] ?? 0)}'
+                                            : 'Duration: ${_formatDuration(session['totalDuration'])} • '
+                                                  'Distance: ${_formatDistance(session['totalDistance'])}',
+                                      ),
+                                      if (session['currentBattery'] != null ||
+                                          session['punchInBattery'] != null)
+                                        Text(
+                                          'Battery: ${session['currentBattery'] ?? session['punchInBattery'] ?? 0}%',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                   trailing: isActive
                                       ? Container(
@@ -349,16 +383,7 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
                                         )
                                       : Icon(Icons.arrow_forward_ios, size: 16),
                                   onTap: () {
-                                    if (!isActive) {
-                                      Navigator.pushNamed(
-                                        context,
-                                        '/session-route',
-                                        arguments: {
-                                          'sessionId': session['id'],
-                                          'userId': widget.userId,
-                                        },
-                                      );
-                                    }
+                                    _showSessionDetails(session, isActive);
                                   },
                                 ),
                               );
@@ -461,5 +486,125 @@ class _UserDetailScreenV2State extends State<UserDetailScreenV2> {
     if (meters == null) return '0m';
     if (meters < 1000) return '${meters}m';
     return '${(meters / 1000).toStringAsFixed(2)}km';
+  }
+
+  void _showSessionDetails(Map<String, dynamic> session, bool isActive) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              isActive ? Icons.play_circle : Icons.check_circle,
+              color: isActive ? Colors.green : Colors.blue,
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isActive ? 'Active Session' : 'Session Details',
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow(
+                'Punch In',
+                _formatDateTime(session['punchInTime']),
+              ),
+              if (!isActive && session['punchOutTime'] != null)
+                _buildDetailRow(
+                  'Punch Out',
+                  _formatDateTime(session['punchOutTime']),
+                ),
+              Divider(),
+              _buildDetailRow(
+                'Duration',
+                _formatDuration(
+                  isActive
+                      ? session['currentDuration']
+                      : session['totalDuration'],
+                ),
+              ),
+              _buildDetailRow(
+                'Distance',
+                _formatDistance(
+                  isActive
+                      ? session['currentDistance']
+                      : session['totalDistance'],
+                ),
+              ),
+              _buildDetailRow(
+                'Tracking Points',
+                '${session['trackingPoints'] ?? 0}',
+              ),
+              _buildDetailRow('Visits', '${session['visitCount'] ?? 0}'),
+              Divider(),
+              _buildDetailRow(
+                'Punch In Battery',
+                '${session['punchInBattery'] ?? 0}%',
+              ),
+              if (session['currentBattery'] != null)
+                _buildDetailRow(
+                  'Current Battery',
+                  '${session['currentBattery']}%',
+                ),
+              if (!isActive && session['punchOutBattery'] != null)
+                _buildDetailRow(
+                  'Punch Out Battery',
+                  '${session['punchOutBattery']}%',
+                ),
+              if (session['avgSpeed'] != null)
+                _buildDetailRow(
+                  'Average Speed',
+                  '${session['avgSpeed'].toStringAsFixed(1)} km/h',
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          if (!isActive)
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(
+                  context,
+                  '/session-route',
+                  arguments: {
+                    'sessionId': session['id'],
+                    'userId': widget.userId,
+                  },
+                );
+              },
+              icon: Icon(Icons.map),
+              label: Text('View Route'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+          Text(
+            value,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+        ],
+      ),
+    );
   }
 }

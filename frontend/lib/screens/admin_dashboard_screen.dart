@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/toast.dart';
 import 'package:provider/provider.dart';
+import 'user_detail_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -27,11 +28,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       final api = ApiService();
       final users = await api.listUsers();
-      setState(() => _users = users);
+
+      print('DEBUG: Fetched users response: $users');
+      print('DEBUG: Users type: ${users.runtimeType}');
+      print('DEBUG: Users length: ${users is List ? users.length : 0}');
+
+      if (mounted) {
+        setState(() => _users = users is List ? users : []);
+        print('DEBUG: Set _users to ${_users.length} items');
+      }
     } catch (e) {
-      showToast('Failed to load users', error: true);
+      print('DEBUG: Error fetching users: $e');
+      if (mounted) {
+        showToast(
+          (e is ApiException) ? e.message : 'Failed to load users',
+          error: true,
+        );
+      }
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -41,28 +58,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       appBar: AppBar(
         title: Text("Admin Dashboard"),
         centerTitle: false,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _fetchUsers,
+            tooltip: 'Refresh users',
+          ),
+        ],
       ),
       drawer: Drawer(
         child: ListView(
           children: [
             DrawerHeader(
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.secondary,
+                  ],
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(FontAwesomeIcons.userShield, color: Colors.white, size: 28),
+                  Icon(
+                    FontAwesomeIcons.userShield,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                   SizedBox(height: 8),
-                  Text("Admin Menu", style: TextStyle(fontSize: 22, color: Colors.white)),
+                  Text(
+                    "Admin Menu",
+                    style: TextStyle(fontSize: 22, color: Colors.white),
+                  ),
                 ],
               ),
             ),
             ListTile(
               leading: Icon(Icons.person_add),
               title: Text("Create User"),
-              onTap: () => Navigator.pushNamed(context, "/create-user"),
+              onTap: () async {
+                await Navigator.pushNamed(context, "/create-user");
+                // Refresh users when returning from create user screen
+                _fetchUsers();
+              },
             ),
             ListTile(
               leading: Icon(Icons.location_on),
@@ -95,52 +135,118 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : Column(
-                children: [
-                  Expanded(
-                    child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.1,
-                children: [
-                  _buildCard(context, "Create User", FontAwesomeIcons.userPlus, () => Navigator.pushNamed(context, "/create-user")),
-                  _buildCard(context, "Track User", FontAwesomeIcons.locationDot, () => Navigator.pushNamed(context, "/track-user")),
-                  _buildCard(context, "Users (${_users.length})", FontAwesomeIcons.users, () {}),
-                  _buildCard(context, "Settings", FontAwesomeIcons.gear, () {}),
-                ],
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Text('Recent users', style: Theme.of(context).textTheme.titleMedium),
-                  SizedBox(height: 8),
-                  SizedBox(
-                    height: 120,
-                    child: _users.isEmpty
-                        ? Center(child: Text('No users yet'))
-                        : ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            itemBuilder: (c, i) => Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(_users[i]['name'] ?? 'Unknown', style: Theme.of(context).textTheme.titleMedium),
-                                    SizedBox(height: 6),
-                                    Text(_users[i]['email'] ?? '', style: Theme.of(context).textTheme.bodySmall),
-                                    SizedBox(height: 4),
-                                    Text(_users[i]['phone'] ?? '', style: Theme.of(context).textTheme.bodySmall),
-                                  ],
-                                ),
+                      children: [
+                        Expanded(
+                          child: GridView.count(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.1,
+                            children: [
+                              _buildCard(
+                                context,
+                                "Create User",
+                                FontAwesomeIcons.userPlus,
+                                () async {
+                                  await Navigator.pushNamed(
+                                    context,
+                                    "/create-user",
+                                  );
+                                  // Refresh users when returning
+                                  _fetchUsers();
+                                },
                               ),
-                            ),
-                            separatorBuilder: (_, __) => SizedBox(width: 8),
-                            itemCount: _users.length,
+                              _buildCard(
+                                context,
+                                "Track User",
+                                FontAwesomeIcons.locationDot,
+                                () =>
+                                    Navigator.pushNamed(context, "/track-user"),
+                              ),
+                              _buildCard(
+                                context,
+                                "Users (${_users.length})",
+                                FontAwesomeIcons.users,
+                                () {},
+                              ),
+                              _buildCard(
+                                context,
+                                "Settings",
+                                FontAwesomeIcons.gear,
+                                () {},
+                              ),
+                            ],
                           ),
-                  ),
-                ],
-              ),
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Recent users',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        SizedBox(height: 8),
+                        SizedBox(
+                          height: 120,
+                          child: _users.isEmpty
+                              ? Center(child: Text('No users yet'))
+                              : ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  itemBuilder: (c, i) => Card(
+                                    child: InkWell(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                UserDetailScreen(
+                                                  userId: _users[i]['id'],
+                                                  userName:
+                                                      _users[i]['name'] ??
+                                                      'Unknown',
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _users[i]['name'] ?? 'Unknown',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleMedium,
+                                            ),
+                                            SizedBox(height: 6),
+                                            Text(
+                                              _users[i]['email'] ?? '',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                            ),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              _users[i]['phone'] ?? '',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  separatorBuilder: (_, __) =>
+                                      SizedBox(width: 8),
+                                  itemCount: _users.length,
+                                ),
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -148,7 +254,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildCard(BuildContext context, String title, IconData icon, VoidCallback onTap) {
+  Widget _buildCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -158,14 +269,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 28,
+              ),
               SizedBox(height: 12),
               Text(title, style: Theme.of(context).textTheme.titleMedium),
               Spacer(),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
-                children: [Icon(Icons.arrow_forward, color: Colors.grey),],
-              )
+                children: [Icon(Icons.arrow_forward, color: Colors.grey)],
+              ),
             ],
           ),
         ),

@@ -60,9 +60,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     }
     try {
       final res = await locationService.sendPing(userId!);
-      showToast('Location sent (${res['id']})');
+      // Handle both old and new response formats
+      final locationId = res['location']?['id'] ?? res['id'];
+      if (mounted) {
+        showToast('Location sent successfully (ID: $locationId)');
+      }
     } catch (e) {
-      showToast('Ping failed: ${(e is ApiException) ? e.message : e.toString()}', error: true);
+      if (mounted) {
+        showToast(
+          'Ping failed: ${(e is ApiException) ? e.message : e.toString()}',
+          error: true,
+        );
+      }
     }
   }
 
@@ -75,17 +84,33 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           padding: const EdgeInsets.all(20),
           child: Card(
             elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(FontAwesomeIcons.route, color: Theme.of(context).colorScheme.primary, size: 48),
+                  Icon(
+                    FontAwesomeIcons.route,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 48,
+                  ),
                   SizedBox(height: 12),
-                  Text(isTracking ? "Tracking ON" : "Tracking OFF", style: Theme.of(context).textTheme.headlineSmall),
+                  Text(
+                    isTracking ? "Tracking ON" : "Tracking OFF",
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                   SizedBox(height: 12),
-                  Text(isTracking ? 'Your live location is being shared' : 'You are not currently tracking', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey)),
+                  Text(
+                    isTracking
+                        ? 'Your live location is being shared'
+                        : 'You are not currently tracking',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                  ),
                   SizedBox(height: 20),
                   RoundedButton(
                     label: isTracking ? 'Stop Tracking' : 'Start Tracking',
@@ -95,12 +120,21 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   SizedBox(height: 12),
                   TextFormField(
                     controller: userController,
-                    decoration: InputDecoration(labelText: 'Your User ID', prefixIcon: Icon(Icons.person_outline)),
+                    decoration: InputDecoration(
+                      labelText: 'Your User ID',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
                   ),
                   SizedBox(height: 8),
                   Row(
                     children: [
-                      Expanded(child: RoundedButton(label: 'Save User ID', icon: Icons.save, onPressed: _saveUserId)),
+                      Expanded(
+                        child: RoundedButton(
+                          label: 'Save User ID',
+                          icon: Icons.save,
+                          onPressed: _saveUserId,
+                        ),
+                      ),
                     ],
                   ),
                 ],

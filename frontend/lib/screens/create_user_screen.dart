@@ -20,21 +20,65 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
   bool _loading = false;
 
   Future<void> createUser() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      showToast('Please fill in all required fields', error: true);
+      return;
+    }
+
     setState(() => _loading = true);
     final api = ApiService();
+
     try {
-      await api.createUser(nameController.text.trim(), email: emailController.text.trim(), phone: phoneController.text.trim());
+      final response = await api.createUser(
+        nameController.text.trim(),
+        email: emailController.text.trim().isEmpty
+            ? null
+            : emailController.text.trim(),
+        phone: phoneController.text.trim().isEmpty
+            ? null
+            : phoneController.text.trim(),
+      );
+
       if (!mounted) return;
-      setState(() => _loading = false);
-      showToast('User created successfully');
+
+      // Extract user info from response
+      final userName = response['user']?['name'] ?? response['name'] ?? 'User';
+
+      // Clear form first
       nameController.clear();
       emailController.clear();
       phoneController.clear();
+
+      setState(() => _loading = false);
+
+      // Show success message
+      showToast('✓ User "$userName" created successfully');
+
+      // Optional: Navigate back or show dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('User created successfully!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      showToast((e is ApiException) ? e.message : 'Create user failed', error: true);
+
+      final errorMessage = (e is ApiException)
+          ? e.message
+          : 'Failed to create user';
+      showToast(errorMessage, error: true);
+
+      // Show detailed error in snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -46,7 +90,9 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
         padding: const EdgeInsets.all(20),
         child: Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Form(
@@ -54,32 +100,73 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
               child: Column(
                 children: <Widget>[
                   ListTile(
-                    leading: Icon(FontAwesomeIcons.userPlus, color: Theme.of(context).colorScheme.primary),
-                    title: Text('Create user', style: Theme.of(context).textTheme.titleLarge),
+                    leading: Icon(
+                      FontAwesomeIcons.userPlus,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    title: Text(
+                      'Create user',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
                   TextFormField(
                     controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Name', prefixIcon: Icon(Icons.person)),
-                    validator: (s) => (s == null || s.trim().isEmpty) ? 'Name required' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                    validator: (s) => (s == null || s.trim().isEmpty)
+                        ? 'Name required'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: emailController,
-                    decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)),
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
                     validator: (s) {
-                      if (s == null || s.trim().isEmpty) return null; // optional
+                      if (s == null || s.trim().isEmpty) {
+                        return null; // optional
+                      }
                       final emailRegex = RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$");
-                      return emailRegex.hasMatch(s.trim()) ? null : 'Invalid email';
+                      return emailRegex.hasMatch(s.trim())
+                          ? null
+                          : 'Invalid email format';
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: phoneController,
-                    decoration: const InputDecoration(labelText: 'Phone', prefixIcon: Icon(Icons.phone_android)),
-                    validator: (s) => (s == null || s.trim().isEmpty) ? null : ((s.trim().length < 7) ? 'Invalid phone' : null),
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone (10 digits)',
+                      prefixIcon: Icon(Icons.phone_android),
+                      hintText: '9876543210',
+                      counterText: '',
+                    ),
+                    validator: (s) {
+                      if (s == null || s.trim().isEmpty) {
+                        return null; // optional
+                      }
+                      final cleaned = s.trim().replaceAll(
+                        RegExp(r'[^0-9]'),
+                        '',
+                      );
+                      if (cleaned.length != 10) {
+                        return 'Phone must be exactly 10 digits';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 20),
-                  RoundedButton(label: _loading ? 'Creating...' : 'Create User', icon: FontAwesomeIcons.plus, onPressed: _loading ? null : createUser),
+                  RoundedButton(
+                    label: _loading ? 'Creating...' : 'Create User',
+                    icon: FontAwesomeIcons.plus,
+                    onPressed: _loading ? null : createUser,
+                  ),
                 ],
               ),
             ),

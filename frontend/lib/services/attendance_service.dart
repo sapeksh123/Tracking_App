@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'battery_service.dart';
 import 'tracking_service.dart';
@@ -71,6 +72,10 @@ class AttendanceService {
       _isPunchedIn = true;
       _currentSession = response['session'];
 
+      // Store session ID for background service
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_session_id', _currentSession!['id']);
+
       // Start location tracking
       await _tracking.startTracking(_userId!);
 
@@ -115,6 +120,10 @@ class AttendanceService {
       // Update local state
       _isPunchedIn = false;
       _currentSession = null;
+
+      // Clear session ID from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('current_session_id');
 
       return response;
     } catch (e) {

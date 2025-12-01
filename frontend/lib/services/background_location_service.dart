@@ -176,9 +176,10 @@ class BackgroundLocationService {
         defaultValue: 'https://tracking-app-8rsa.onrender.com',
       );
 
-      // Get androidId from SharedPreferences
+      // Get androidId and sessionId from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final androidId = prefs.getString('android_id');
+      final sessionId = prefs.getString('current_session_id');
 
       // Use the correct realtime tracking endpoint
       await http
@@ -191,6 +192,7 @@ class BackgroundLocationService {
             body: jsonEncode({
               'userId': userId,
               'androidId': androidId,
+              'sessionId': sessionId, // ← CRITICAL FIX: Include sessionId!
               'latitude': latitude,
               'longitude': longitude,
               'battery': battery,

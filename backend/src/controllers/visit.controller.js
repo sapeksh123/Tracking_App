@@ -4,10 +4,27 @@ const prisma = new PrismaClient();
 // POST /visits/mark - Mark a visit
 export async function markVisit(req, res) {
   try {
+    console.log("📍 Mark visit request received:", {
+      body: req.body,
+      headers: req.headers['content-type'],
+    });
+
     const { userId, sessionId, latitude, longitude, address, notes, battery } = req.body;
 
-    if (!userId || latitude == null || longitude == null) {
-      return res.status(400).json({ error: "userId, latitude, and longitude required" });
+    // Validate required fields
+    if (!userId) {
+      console.error("❌ Missing userId");
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    if (latitude == null || latitude === undefined) {
+      console.error("❌ Missing latitude");
+      return res.status(400).json({ error: "latitude is required" });
+    }
+
+    if (longitude == null || longitude === undefined) {
+      console.error("❌ Missing longitude");
+      return res.status(400).json({ error: "longitude is required" });
     }
 
     // Validate coordinates
@@ -15,12 +32,16 @@ export async function markVisit(req, res) {
     const lng = parseFloat(longitude);
 
     if (isNaN(lat) || lat < -90 || lat > 90) {
-      return res.status(400).json({ error: "Invalid latitude" });
+      console.error("❌ Invalid latitude:", latitude);
+      return res.status(400).json({ error: `Invalid latitude: ${latitude}` });
     }
 
     if (isNaN(lng) || lng < -180 || lng > 180) {
-      return res.status(400).json({ error: "Invalid longitude" });
+      console.error("❌ Invalid longitude:", longitude);
+      return res.status(400).json({ error: `Invalid longitude: ${longitude}` });
     }
+
+    console.log("✓ Validation passed, creating visit...");
 
     // Create visit
     const visit = await prisma.visit.create({
@@ -36,14 +57,25 @@ export async function markVisit(req, res) {
       },
     });
 
+    console.log("✓ Visit created successfully:", visit.id);
+
     res.json({
       success: true,
       message: "Visit marked successfully",
       visit,
     });
   } catch (e) {
-    console.error("Mark visit error:", e);
-    res.status(500).json({ error: "Failed to mark visit", details: e.message });
+    console.error("❌ Mark visit error:", e);
+    console.error("Error details:", {
+      message: e.message,
+      code: e.code,
+      meta: e.meta,
+    });
+    res.status(500).json({ 
+      error: "Failed to mark visit", 
+      details: e.message,
+      code: e.code 
+    });
   }
 }
 

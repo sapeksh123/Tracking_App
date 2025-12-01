@@ -38,7 +38,7 @@ class BackgroundLocationService {
       androidConfiguration: AndroidConfiguration(
         onStart: onStart,
         autoStart: false,
-        autoStartOnBoot: true,
+        autoStartOnBoot: false, // Disabled to prevent Android 12+ crash
         isForegroundMode: true,
         notificationChannelId: notificationChannelId,
         initialNotificationTitle: 'Attendance Tracking',
@@ -173,27 +173,34 @@ class BackgroundLocationService {
       // Get API base URL from environment or use default
       const String baseUrl = String.fromEnvironment(
         'API_BASE_URL',
-        defaultValue: 'http://10.0.2.2:5000',
+        defaultValue: 'https://tracking-app-8rsa.onrender.com',
       );
 
+      // Get androidId from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final androidId = prefs.getString('android_id');
+
+      // Use the correct realtime tracking endpoint
       await http
           .post(
-            Uri.parse('$baseUrl/api/tracking/location'),
+            Uri.parse('$baseUrl/realtime/track'),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $token',
             },
             body: jsonEncode({
               'userId': userId,
+              'androidId': androidId,
               'latitude': latitude,
               'longitude': longitude,
               'battery': battery,
-              'timestamp': DateTime.now().toIso8601String(),
+              'timestamp': DateTime.now().toUtc().toIso8601String(),
             }),
           )
           .timeout(const Duration(seconds: 10));
     } catch (e) {
-      // Silently handle errors
+      // Silently handle errors - log for debugging if needed
+      // print('Background location update error: $e');
     }
   }
 

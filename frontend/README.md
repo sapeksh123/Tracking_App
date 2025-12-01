@@ -22,10 +22,12 @@ flutter pub get
 flutter run
 ```
 
-If you run the app on a physical device, or your backend isn't on the host default 10.0.2.2, define the API base url with a dart define:
+The app is now configured to use the production backend at `https://tracking-app-8rsa.onrender.com` by default.
+
+If you need to use a different backend URL (e.g., for local development), you can override it with:
 
 ```powershell
-flutter run --dart-define=API_BASE_URL=http://192.168.1.100:3000
+flutter run --dart-define=API_BASE_URL=http://192.168.1.100:5000
 ```
 
 ## Modifying Theme

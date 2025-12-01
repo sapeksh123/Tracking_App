@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/toast.dart';
 import '../widgets/tracking_consent_dialog.dart';
 import '../widgets/punch_in_out_widget.dart';
+import '../widgets/permission_setup_dialog.dart';
 import 'package:geolocator/geolocator.dart';
 
 class UserHomeScreenV2 extends StatefulWidget {
@@ -174,20 +175,20 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
     });
   }
 
-  Future<void> _requestPermissions() async {
-    try {
-      final hasPermission = await _permissionService
-          .requestLocationPermission();
+  Future<void> _showPermissionSetup() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PermissionSetupDialog(),
+    );
 
-      if (!hasPermission) {
-        showToast('Location permission required for attendance', error: true);
-        return;
-      }
-
-      showToast('✓ Permissions granted. You can now punch in.');
-    } catch (e) {
-      showToast('Failed to get permissions: $e', error: true);
+    if (result == true) {
+      showToast('✓ All permissions granted. You can now punch in.');
     }
+  }
+
+  Future<void> _requestPermissions() async {
+    await _showPermissionSetup();
   }
 
   Future<void> _punchIn() async {
@@ -199,12 +200,33 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
     setState(() => _isLoading = true);
 
     try {
-      // Check location permission
-      final hasPermission = await _permissionService.hasLocationPermission();
-      if (!hasPermission) {
-        await _requestPermissions();
-        setState(() => _isLoading = false);
-        return;
+      // Check if all permissions are granted
+      final hasAllPermissions = await _permissionService
+          .hasAllTrackingPermissions();
+
+      if (!hasAllPermissions) {
+        // Check individual permissions
+        final hasLocation = await _permissionService.hasLocationPermission();
+
+        if (!hasLocation) {
+          showToast('Please grant location permission first', error: true);
+          await _requestPermissions();
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        // Has location but missing other permissions - warn but allow
+        final hasBackground = await _permissionService
+            .hasBackgroundLocationPermission();
+        final hasNotification = await _permissionService
+            .hasNotificationPermission();
+
+        if (!hasBackground || !hasNotification) {
+          showToast(
+            'Some permissions missing. Tracking may not work reliably in background.',
+            error: true,
+          );
+        }
       }
 
       await _attendanceService.punchIn();
@@ -215,7 +237,7 @@ class _UserHomeScreenV2State extends State<UserHomeScreenV2>
         _currentSession = _attendanceService.currentSession;
       });
 
-      showToast('✓ Punched in successfully!');
+      showToast('✓ Punched in successfully! Tracking started.');
 
       // Refresh session from server to get latest data (in background)
       _refreshSession();

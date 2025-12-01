@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/attendance_service.dart';
 import '../widgets/toast.dart';
@@ -26,16 +27,26 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
   Future<void> _initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    final user = prefs.getString('user');
+    final userStr = prefs.getString('user');
 
-    if (user != null) {
-      final userMap = Map<String, dynamic>.from(Uri.splitQueryString(user));
-      _userId = userMap['id'];
+    if (userStr != null && userStr.isNotEmpty) {
+      try {
+        final userMap = jsonDecode(userStr) as Map<String, dynamic>;
+        _userId = userMap['id'];
+        debugPrint('✓ Attendance History: User ID loaded: $_userId');
+      } catch (e) {
+        debugPrint('✗ Failed to parse user data: $e');
+      }
     }
 
     if (_userId != null) {
       await _attendanceService.initialize(_userId!);
       await _loadSessions();
+    } else {
+      if (mounted) {
+        showToast('Please login again', error: true);
+        Navigator.pushReplacementNamed(context, '/user-login');
+      }
     }
   }
 
@@ -370,6 +381,16 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                           _attendanceService.formatDistance(
                             session['totalDistance'],
                           ),
+                        ),
+                      if (session['punchInBattery'] != null)
+                        _buildDetailRow(
+                          'Start Battery',
+                          '${session['punchInBattery']}%',
+                        ),
+                      if (session['punchOutBattery'] != null)
+                        _buildDetailRow(
+                          'End Battery',
+                          '${session['punchOutBattery']}%',
                         ),
 
                       SizedBox(height: 20),

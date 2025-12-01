@@ -277,13 +277,17 @@ class _SessionRouteScreenEnhancedState
                   _buildStatItem(
                     Icons.access_time,
                     'Duration',
-                    _attendanceService.formatDuration(session['totalDuration']),
+                    _attendanceService.formatDuration(
+                      session['currentDuration'] ?? session['totalDuration'],
+                    ),
                     Colors.blue,
                   ),
                   _buildStatItem(
                     Icons.route,
                     'Distance',
-                    _attendanceService.formatDistance(session['totalDistance']),
+                    _attendanceService.formatDistance(
+                      session['currentDistance'] ?? session['totalDistance'],
+                    ),
                     Colors.orange,
                   ),
                   _buildStatItem(

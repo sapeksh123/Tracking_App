@@ -284,6 +284,28 @@ export async function getSessionRoute(req, res) {
       orderBy: { timestamp: "asc" },
     });
 
+    // Calculate current duration if session is active
+    let currentDuration = session.totalDuration;
+    if (session.isActive) {
+      currentDuration = Math.floor(
+        (new Date().getTime() - session.punchInTime.getTime()) / (1000 * 60)
+      );
+    }
+
+    // Calculate current distance from tracking data
+    let totalDistance = 0;
+    for (let i = 1; i < trackingData.length; i++) {
+      const prev = trackingData[i - 1];
+      const curr = trackingData[i];
+      totalDistance += haversine(
+        prev.latitude,
+        prev.longitude,
+        curr.latitude,
+        curr.longitude
+      );
+    }
+    const currentDistance = session.isActive ? Math.round(totalDistance) : session.totalDistance;
+
     // Convert to GeoJSON format
     const coordinates = trackingData.map((d) => [
       d.longitude,
@@ -294,7 +316,12 @@ export async function getSessionRoute(req, res) {
 
     res.json({
       success: true,
-      session,
+      session: {
+        ...session,
+        currentDuration,
+        currentDistance,
+        trackingPoints: trackingData.length,
+      },
       route: {
         type: "Feature",
         geometry: {
@@ -305,8 +332,8 @@ export async function getSessionRoute(req, res) {
           sessionId,
           userId,
           pointCount: trackingData.length,
-          distance: session.totalDistance,
-          duration: session.totalDuration,
+          distance: currentDistance,
+          duration: currentDuration,
         },
       },
     });

@@ -16,15 +16,25 @@ model Admin {
 }
 
 model User {
-  id        String     @id @default(uuid())
-  name      String
-  email     String?    @unique
-  phone     String?    @unique
-  role      String     @default("user")
-  isActive  Boolean    @default(true)
-  createdAt DateTime   @default(now())
-  locations Location[]
-  trips     Trip[]
+  id              String            @id @default(uuid())
+  name            String
+  email           String?           @unique
+  phone           String            @unique
+  password        String            // Hashed password
+  role            String            @default("user")
+  isActive        Boolean           @default(true)
+  androidId       String?           @unique
+  deviceModel     String?
+  trackingConsent Boolean           @default(false)
+  consentedAt     DateTime?
+  lastSeen        DateTime?
+  isPunchedIn     Boolean           @default(false)
+  currentSession  String?           // Current attendance session ID
+  createdAt       DateTime          @default(now())
+  locations       Location[]
+  trips           Trip[]
+  trackingData    TrackingData[]
+  attendanceSessions AttendanceSession[]
 }
 
 model Location {
@@ -37,6 +47,46 @@ model Location {
   metadata  Json?    @default("{}")
   user      User     @relation(fields: [userId], references: [id])
   @@index([userId, timestamp])
+}
+
+model TrackingData {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  androidId String?
+  sessionId String?  // Link to attendance session
+  latitude  Float
+  longitude Float
+  battery   Int?
+  accuracy  Float?
+  speed     Float?
+  timestamp DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId, timestamp])
+  @@index([androidId])
+  @@index([sessionId])
+}
+
+model AttendanceSession {
+  id              String   @id @default(uuid())
+  userId          String
+  punchInTime     DateTime
+  punchInLocation String   // "lat,lng"
+  punchInBattery  Int?
+  punchInAddress  String?  // Reverse geocoded address
+  punchOutTime    DateTime?
+  punchOutLocation String? // "lat,lng"
+  punchOutBattery Int?
+  punchOutAddress String?
+  totalDistance   Float    @default(0) // in meters
+  totalDuration   Int?     // in minutes
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId, punchInTime])
+  @@index([isActive])
 }
 
 model Trip {

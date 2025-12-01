@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../widgets/custom_button.dart';
+import '../services/api_service.dart';
+import '../widgets/toast.dart';
 
 class UserLoginScreen extends StatefulWidget {
   const UserLoginScreen({super.key});
@@ -12,20 +16,54 @@ class UserLoginScreen extends StatefulWidget {
 class _UserLoginScreenState extends State<UserLoginScreen> {
   final phoneController = TextEditingController();
   final passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
 
-  void loginUser() {
-    // For now, just navigate to user home
-    // In production, you'd validate credentials here
-    if (phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please enter your phone number'),
-          backgroundColor: Colors.red,
-        ),
-      );
+  Future<void> loginUser() async {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
-    Navigator.pushReplacementNamed(context, "/user-home");
+
+    setState(() => _loading = true);
+
+    try {
+      final api = ApiService();
+      final result = await api.userLogin(
+        phoneController.text.trim(),
+        passwordController.text.trim(),
+      );
+
+      // Store user data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', result['token']);
+      await prefs.setString('user', jsonEncode(result['user']));
+      await prefs.setString('userRole', 'user');
+
+      if (!mounted) return;
+
+      showToast('✓ Login successful!');
+      Navigator.pushReplacementNamed(context, "/user-home");
+    } catch (e) {
+      if (!mounted) return;
+
+      final errorMessage = (e is ApiException)
+          ? e.message
+          : 'Login failed. Please check your credentials.';
+
+      showToast(errorMessage, error: true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   @override
@@ -58,34 +96,56 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                   ),
                   SizedBox(height: 24),
 
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    maxLength: 10,
-                    decoration: InputDecoration(
-                      labelText: "Phone",
-                      prefixIcon: Icon(Icons.phone),
-                      hintText: '9876543210',
-                      counterText: '',
-                    ),
-                  ),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: phoneController,
+                          keyboardType: TextInputType.phone,
+                          maxLength: 10,
+                          decoration: InputDecoration(
+                            labelText: "Phone",
+                            prefixIcon: Icon(Icons.phone),
+                            hintText: '9876543210',
+                            counterText: '',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Phone number required';
+                            }
+                            if (value.trim().length != 10) {
+                              return 'Phone must be 10 digits';
+                            }
+                            return null;
+                          },
+                        ),
 
-                  SizedBox(height: 12),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: "Password",
-                      prefixIcon: Icon(Icons.lock_outline),
-                      hintText: 'Enter your password',
+                        SizedBox(height: 12),
+                        TextFormField(
+                          controller: passwordController,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            labelText: "Password",
+                            prefixIcon: Icon(Icons.lock_outline),
+                            hintText: 'Default: your phone number',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Password required';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
                   ),
 
                   SizedBox(height: 20),
                   RoundedButton(
-                    label: "Login",
+                    label: _loading ? "Logging in..." : "Login",
                     icon: Icons.arrow_forward,
-                    onPressed: loginUser,
+                    onPressed: _loading ? null : loginUser,
                     fullWidth: true,
                   ),
                   SizedBox(height: 12),

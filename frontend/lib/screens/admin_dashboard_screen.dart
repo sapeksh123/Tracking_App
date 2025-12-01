@@ -29,16 +29,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final api = ApiService();
       final users = await api.listUsers();
 
-      print('DEBUG: Fetched users response: $users');
-      print('DEBUG: Users type: ${users.runtimeType}');
-      print('DEBUG: Users length: ${users is List ? users.length : 0}');
-
       if (mounted) {
         setState(() => _users = users is List ? users : []);
-        print('DEBUG: Set _users to ${_users.length} items');
       }
     } catch (e) {
-      print('DEBUG: Error fetching users: $e');
       if (mounted) {
         showToast(
           (e is ApiException) ? e.message : 'Failed to load users',
@@ -50,6 +44,72 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  void _showUsersListDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: double.maxFinite,
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'All Users',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              Divider(),
+              SizedBox(
+                height: 400,
+                child: _users.isEmpty
+                    ? Center(child: Text('No users found'))
+                    : ListView.builder(
+                        itemCount: _users.length,
+                        itemBuilder: (context, index) {
+                          final user = _users[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              child: Text(
+                                user['name']?[0]?.toUpperCase() ?? 'U',
+                              ),
+                            ),
+                            title: Text(user['name'] ?? 'Unknown'),
+                            subtitle: Text(
+                              user['email'] ?? user['phone'] ?? '',
+                            ),
+                            trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => UserDetailScreen(
+                                    userId: user['id'],
+                                    userName: user['name'] ?? 'Unknown',
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -100,7 +160,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               title: Text("Create User"),
               onTap: () async {
                 await Navigator.pushNamed(context, "/create-user");
-                // Refresh users when returning from create user screen
                 _fetchUsers();
               },
             ),
@@ -152,7 +211,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     context,
                                     "/create-user",
                                   );
-                                  // Refresh users when returning
                                   _fetchUsers();
                                 },
                               ),
@@ -167,7 +225,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 context,
                                 "Users (${_users.length})",
                                 FontAwesomeIcons.users,
-                                () {},
+                                () => _showUsersListDialog(),
                               ),
                               _buildCard(
                                 context,

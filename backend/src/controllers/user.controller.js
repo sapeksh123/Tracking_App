@@ -1,13 +1,18 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 export async function createUser(req, res) {
   try {
-    const { name, email, phone, role } = req.body;
+    const { name, email, phone, role, password } = req.body;
     
     // Validation
     if (!name || name.trim().length === 0) {
       return res.status(400).json({ error: "Name required" });
+    }
+    
+    if (!phone) {
+      return res.status(400).json({ error: "Phone required" });
     }
     
     // Email validation
@@ -15,25 +20,35 @@ export async function createUser(req, res) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
     
-    // Phone validation
-    if (phone && !/^\+?[0-9]{6,15}$/.test(phone)) {
-      return res.status(400).json({ error: 'Invalid phone number format' });
+    // Phone validation (10 digits)
+    const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
+    if (cleanPhone.length !== 10) {
+      return res.status(400).json({ error: 'Phone must be exactly 10 digits' });
     }
+
+    // Default password is phone number if not provided
+    const userPassword = password || phone;
+    const hashedPassword = await bcrypt.hash(userPassword, 10);
 
     // Create user
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
         email: email?.trim() || null,
-        phone: phone?.trim() || null,
+        phone: cleanPhone,
+        password: hashedPassword,
         role: role || "user"
       },
     });
 
+    // Don't send password in response
+    const { password: _, ...userWithoutPassword } = user;
+
     // Success response
     res.json({
       success: true,
-      user
+      user: userWithoutPassword,
+      message: password ? "User created" : "User created with phone as default password"
     });
   } catch (e) {
     console.error("Create user error:", e);

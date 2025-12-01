@@ -15,9 +15,11 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
+  final passwordController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
+  bool _obscurePassword = true;
 
   Future<void> createUser() async {
     if (!_formKey.currentState!.validate()) {
@@ -37,6 +39,9 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
         phone: phoneController.text.trim().isEmpty
             ? null
             : phoneController.text.trim(),
+        password: passwordController.text.trim().isEmpty
+            ? null
+            : passwordController.text.trim(),
       );
 
       if (!mounted) return;
@@ -48,6 +53,7 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
       nameController.clear();
       emailController.clear();
       phoneController.clear();
+      passwordController.clear();
 
       setState(() => _loading = false);
 
@@ -142,14 +148,14 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                     keyboardType: TextInputType.phone,
                     maxLength: 10,
                     decoration: const InputDecoration(
-                      labelText: 'Phone (10 digits)',
+                      labelText: 'Phone (10 digits) *',
                       prefixIcon: Icon(Icons.phone_android),
                       hintText: '9876543210',
                       counterText: '',
                     ),
                     validator: (s) {
                       if (s == null || s.trim().isEmpty) {
-                        return null; // optional
+                        return 'Phone number required';
                       }
                       final cleaned = s.trim().replaceAll(
                         RegExp(r'[^0-9]'),
@@ -160,6 +166,29 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password (optional)',
+                      prefixIcon: Icon(Icons.lock_outline),
+                      hintText: 'Leave empty to use phone as password',
+                      helperText: 'Default: phone number',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   RoundedButton(
